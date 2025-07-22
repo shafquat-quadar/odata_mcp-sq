@@ -36,7 +36,8 @@ from .hint_manager import HintManager
 class ODataMCPBridge:
     """Bridge between OData and MCP, creating tools from OData metadata."""
 
-    def __init__(self, service_url: str, auth: Optional[Union[Tuple[str, str], Dict[str, str]]] = None, mcp_name: str = "odata-mcp", verbose: bool = False, 
+    def __init__(self, service_url: str, auth: Optional[Union[Tuple[str, str], Dict[str, str]]] = None, *, metadata_xml: Optional[str] = None,
+                 mcp_name: str = "odata-mcp", verbose: bool = False,
                  tool_prefix: Optional[str] = None, tool_postfix: Optional[str] = None, use_postfix: bool = True, tool_shrink: bool = False,
                  allowed_entities: Optional[List[str]] = None, allowed_functions: Optional[List[str]] = None, sort_tools: bool = True,
                  pagination_hints: bool = False, legacy_dates: bool = True, verbose_errors: bool = False,
@@ -96,6 +97,7 @@ class ODataMCPBridge:
         self.registered_entity_tools = {}
         self.registered_function_tools = []
         self.all_registered_tools = {}  # Track all tools for trace functionality
+        self.tool_param_defs = {}
         self.use_postfix = use_postfix
         
         # Initialize name shortener
@@ -124,7 +126,10 @@ class ODataMCPBridge:
             self._log_verbose("Initializing Metadata Parser...")
             self.parser = MetadataParser(service_url, auth, verbose=self.verbose)
             self._log_verbose("Parsing OData Metadata...")
-            self.metadata = self.parser.parse()
+            if metadata_xml:
+                self.metadata = self.parser.parse_xml_content(metadata_xml)
+            else:
+                self.metadata = self.parser.parse()
             self._log_verbose("Metadata Parsed. Initializing OData Client...")
             self.client = ODataClient(
                 self.metadata, 
@@ -470,6 +475,8 @@ class ODataMCPBridge:
         
         # Store the implementation logic in the registry
         self._implementation_registry[tool_name] = implementation_logic
+        # Save parameter definitions for FastAPI generation
+        self.tool_param_defs[tool_name] = param_defs
 
         # Prepare scope for exec, including necessary types and modules
         exec_scope = {
@@ -1017,6 +1024,7 @@ class ODataMCPBridge:
             self.mcp.add_tool(Tool.from_function(odata_service_info), name=tool_name)
             # Track the tool for trace functionality
             self.all_registered_tools[tool_name] = odata_service_info
+            self.tool_param_defs[tool_name] = []
             self._log_verbose(f"Registered tool: {tool_name}")
             
             # Also register with 'readme' alias if not using custom name
@@ -1024,6 +1032,7 @@ class ODataMCPBridge:
                 readme_name = self._make_tool_name("readme")
                 self.mcp.add_tool(Tool.from_function(odata_service_info), name=readme_name)
                 self.all_registered_tools[readme_name] = odata_service_info
+                self.tool_param_defs[readme_name] = []
                 self._log_verbose(f"Registered tool alias: {readme_name}")
         except Exception as e:
             # Error, print regardless of verbosity

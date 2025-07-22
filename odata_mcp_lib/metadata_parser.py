@@ -174,6 +174,46 @@ class MetadataParser:
                 print(f"ERROR: Error during final fallback: {fallback_error}", file=sys.stderr)
                 raise e  # Re-raise the original error
 
+    def parse_xml_content(self, xml_content: str) -> ODataMetadata:
+        """Parse OData metadata from a provided XML string."""
+        entity_types = {}
+        entity_sets = {}
+        function_imports = {}
+        service_description = None
+
+        try:
+            self._log_verbose("Parsing metadata from provided XML string...")
+            try:
+                from defusedxml import lxml as safe_lxml
+                root = safe_lxml.fromstring(xml_content.encode("utf-8"))
+                self._log_verbose("Parsed metadata with defusedxml.")
+            except ImportError:
+                root = etree.fromstring(xml_content.encode("utf-8"))
+                self._log_verbose("Parsed metadata with lxml.")
+
+            schema = root.find('.//edm:Schema', namespaces=NAMESPACES)
+            if schema is not None:
+                service_description = self._get_description(schema)
+
+            entity_types = self._parse_entity_types(root)
+            entity_sets = self._parse_entity_sets(root, entity_types)
+            function_imports = self._parse_function_imports(root)
+
+            self._log_verbose(
+                f"Parsing complete. Found {len(entity_types)} types, {len(entity_sets)} sets, {len(function_imports)} functions."
+            )
+
+            return ODataMetadata(
+                entity_types=entity_types,
+                entity_sets=entity_sets,
+                function_imports=function_imports,
+                service_url=self.service_url,
+                service_description=service_description,
+            )
+        except Exception as e:
+            print(f"FATAL ERROR: Could not parse provided metadata: {e}", file=sys.stderr)
+            raise
+
     def _get_entity_sets_from_service_doc(self) -> Dict[str, EntitySet]:
         """Get entity sets from the service document (AtomPub format)."""
         entity_sets = {}
