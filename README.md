@@ -425,9 +425,26 @@ python odata_mcp.py --transport http --http-addr 192.168.1.100:8080 --service ht
    curl -X POST http://localhost:8080/rpc \
      -H "Content-Type: application/json" \
      -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
-   ```
+  ```
 
 > ⚠️ **Security Warning**: The HTTP/SSE transport does not include authentication. Only use it in secure, trusted environments or behind a reverse proxy with proper authentication.
+
+## FastAPI Deployment
+
+The repository also includes a FastAPI application that reads service details from a SQLite database.
+
+### Environment Variables
+
+- `SERVICE_DB_PATH` - path to the SQLite database (default `shared.sqlite`)
+- `SERVICE_NAME` - name of the service entry to load
+
+### Running
+
+```bash
+uvicorn fastapi_server:app --reload
+```
+
+This server exposes every generated tool as a POST endpoint and publishes a fully formed OpenAPI schema.
 
 ## Architecture
 
